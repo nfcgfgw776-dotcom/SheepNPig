@@ -10,6 +10,8 @@ const timelineList = document.getElementById("timelineList");
 const timelineEntryTemplate = document.getElementById("timelineEntryTemplate");
 
 let selectedPhotoData = "";
+let selectedPhotoName = "";
+let selectedPhotoType = "";
 const STORAGE_KEY = "sheepnpigTimelineEntries";
 const STORAGE_KEY_BACKUP = "sheepnpigTimelineEntriesBackup_v1";
 const BACKUP_META_KEY = "sheepnpigTimelineEntriesBackupMeta_v1";
@@ -19,7 +21,7 @@ let entries = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
 const initialDate = '2026-05-17';
 const initialText = '炀炀和轩轩在一起啦！';
 if (!entries.some(e => e.date === initialDate)) {
-  entries.push({ date: initialDate, text: initialText, photo: '', createdAt: Date.now() });
+  entries.push({ date: initialDate, text: initialText, photo: '', photoName: '', photoType: '', createdAt: Date.now() });
   saveEntries();
 }
 
@@ -108,8 +110,33 @@ function renderTimeline() {
     textEl.textContent = entry.text;
 
     if (entry.photo) {
-      photoEl.src = entry.photo;
-      photoEl.classList.remove("hidden");
+      // remove any prior download link in this cloned card
+      const oldLink = clone.querySelector('.download-photo');
+      if (oldLink) oldLink.remove();
+
+      // if file type is known and not an image, show a download link instead
+      if (entry.photoType && !entry.photoType.startsWith('image/')) {
+        photoEl.classList.add('hidden');
+        const linkEl = document.createElement('a');
+        linkEl.className = 'download-photo';
+        linkEl.href = entry.photo;
+        linkEl.download = entry.photoName || 'photo';
+        linkEl.textContent = `下载: ${entry.photoName || '照片'}`;
+        card.appendChild(linkEl);
+      } else {
+        // try to display as image; if browser can't render, fallback to download link
+        photoEl.src = entry.photo;
+        photoEl.classList.remove("hidden");
+        photoEl.onerror = () => {
+          photoEl.classList.add('hidden');
+          const linkEl = document.createElement('a');
+          linkEl.className = 'download-photo';
+          linkEl.href = entry.photo;
+          linkEl.download = entry.photoName || 'photo';
+          linkEl.textContent = `下载: ${entry.photoName || '照片'}`;
+          card.appendChild(linkEl);
+        };
+      }
     }
 
     timelineList.appendChild(clone);
@@ -137,6 +164,8 @@ photoInput.addEventListener("change", (event) => {
   const reader = new FileReader();
   reader.onload = () => {
     selectedPhotoData = reader.result;
+    selectedPhotoName = file.name || '';
+    selectedPhotoType = file.type || '';
   };
   reader.readAsDataURL(file);
 });
@@ -147,8 +176,8 @@ addEntryBtn.addEventListener("click", () => {
   const day = String(daySelect.value).padStart(2, "0");
   const text = entryText.value.trim();
 
-  // Helper to actually push the entry and update UI
-  const pushEntry = (photoData) => {
+  // Helper to actually push or update the entry and update UI
+  const pushEntry = (photoData, photoName = '', photoType = '') => {
     if (!text && !photoData) {
       alert("请填写文字或选择一张照片。\n（文本或照片至少需填写一项）");
       return;
@@ -159,12 +188,18 @@ addEntryBtn.addEventListener("click", () => {
     if (existingIdx !== -1) {
       // Update existing entry for that date: replace photo if provided, replace text if provided
       if (text) entries[existingIdx].text = text;
-      if (photoData) entries[existingIdx].photo = photoData;
+      if (photoData) {
+        entries[existingIdx].photo = photoData;
+        entries[existingIdx].photoName = photoName || '';
+        entries[existingIdx].photoType = photoType || '';
+      }
       saveEntries();
       renderTimeline();
       entryText.value = "";
       photoInput.value = "";
       selectedPhotoData = "";
+      selectedPhotoName = '';
+      selectedPhotoType = '';
       alert('已更新该日期的条目（替换或添加照片/文字）。');
       return;
     }
@@ -174,6 +209,8 @@ addEntryBtn.addEventListener("click", () => {
       date: targetDate,
       text,
       photo: photoData || "",
+      photoName: photoName || '',
+      photoType: photoType || '',
       createdAt: Date.now(),
     });
 
@@ -182,22 +219,83 @@ addEntryBtn.addEventListener("click", () => {
     entryText.value = "";
     photoInput.value = "";
     selectedPhotoData = "";
+    selectedPhotoName = '';
+    selectedPhotoType = '';
   };
 
   // If a file is selected but FileReader hasn't finished, read it now and then push
   const file = photoInput.files && photoInput.files[0];
   if (file && !selectedPhotoData) {
     const reader = new FileReader();
-    reader.onload = () => pushEntry(reader.result);
+    reader.onload = () => pushEntry(reader.result, file.name || '', file.type || '');
     reader.readAsDataURL(file);
     return;
   }
 
   // Otherwise use already-read data (or none)
-  pushEntry(selectedPhotoData);
+  pushEntry(selectedPhotoData, selectedPhotoName, selectedPhotoType);
 });
 
-// (export/import UI removed by user request)
+// Export and Import handlers to preserve user data across updates
+const exportBtn = document.getElementById('exportBtn');
+const importInput = document.getElementById('importInput');
+
+if (exportBtn) {
+  exportBtn.addEventListener('click', () => {
+    try {
+      const data = JSON.stringify(entries, null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const ts = new Date().toISOString().replace(/[:.]/g, '-');
+      a.href = url;
+      a.download = `sheepnpig-entries-${ts}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('导出失败：' + err.message);
+    }
+  });
+}
+
+if (importInput) {
+  importInput.addEventListener('change', (ev) => {
+    const f = ev.target.files && ev.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const parsed = JSON.parse(r.result);
+        if (!Array.isArray(parsed)) throw new Error('文件格式不正确：需要数组');
+        // Merge without duplicating entries (by createdAt when available)
+        let added = 0;
+        parsed.forEach((item) => {
+          const has = entries.some(e => (e.createdAt && item.createdAt && e.createdAt === item.createdAt) || (e.date === item.date && e.text === item.text));
+          if (!has) {
+            // ensure createdAt exists
+            if (!item.createdAt) item.createdAt = Date.now() + Math.floor(Math.random() * 1000);
+            entries.push(item);
+            added += 1;
+          }
+        });
+        if (added) {
+          saveEntries();
+          renderTimeline();
+          alert(`已合并 ${added} 条新记录，原有数据已保留。`);
+        } else {
+          alert('未检测到可合并的新记录。');
+        }
+      } catch (err) {
+        alert('导入失败：' + err.message);
+      }
+    };
+    r.readAsText(f);
+    // clear input so same file can be reselected later
+    ev.target.value = '';
+  });
+}
 
 yearSelect.addEventListener("change", updateDays);
 monthSelect.addEventListener("change", updateDays);
@@ -256,12 +354,14 @@ timelineList.addEventListener('click', (e) => {
     changeBtn.className = 'change-photo-btn';
     const hiddenFile = document.createElement('input');
     hiddenFile.type = 'file';
-    hiddenFile.accept = 'image/*,image/heic,image/heif,image/webp,image/svg+xml,image/bmp,image/tiff';
+    hiddenFile.accept = '*/*';
     hiddenFile.style.display = 'none';
     card.appendChild(hiddenFile);
     changeBtn.addEventListener('click', () => hiddenFile.click());
 
-    // pendingPhoto holds the new image until user clicks Save
+    // pendingPhoto holds the new image until user clicks Save (with metadata)
+    let pendingPhotoName = '';
+    let pendingPhotoType = '';
     let pendingPhoto = null;
     hiddenFile.addEventListener('change', (ev) => {
       const f = ev.target.files[0];
@@ -270,6 +370,8 @@ timelineList.addEventListener('click', (e) => {
       r.onload = () => {
         const b64 = r.result;
         pendingPhoto = b64;
+        pendingPhotoName = f.name || '';
+        pendingPhotoType = f.type || '';
         if (photoEl) {
           photoEl.src = b64;
           photoEl.classList.remove('hidden');
@@ -297,6 +399,8 @@ timelineList.addEventListener('click', (e) => {
         entries[idx].text = newText;
         if (pendingPhoto) {
           entries[idx].photo = pendingPhoto;
+          entries[idx].photoName = pendingPhotoName || '';
+          entries[idx].photoType = pendingPhotoType || '';
           photoChanged = true;
         }
         saveEntries();

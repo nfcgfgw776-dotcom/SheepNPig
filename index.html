@@ -57,10 +57,15 @@
               <textarea id="entryText" placeholder="写下你们的甜蜜回忆..." rows="4"></textarea>
               <label class="image-upload">
                 添加照片
-                <input type="file" id="photoInput" accept="image/*,image/heic,image/heif,image/webp,image/svg+xml,image/bmp,image/tiff" />
+                <input type="file" id="photoInput" accept="*/*" />
               </label>
               <button id="addEntryBtn">添加到时间线</button>
-              
+              <div class="data-controls">
+                <button id="exportBtn" type="button">导出数据</button>
+                <label class="import-label">导入数据
+                  <input type="file" id="importInput" accept="application/json" />
+                </label>
+              </div>
             </div>
           </div>
         </aside>
