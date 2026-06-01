@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 160" width="400" height="320" role="img" aria-label="可爱猪插画">
+  <defs>
+    <linearGradient id="pigskin" x1="0" x2="1">
+      <stop offset="0" stop-color="#fff6f8"/>
+      <stop offset="1" stop-color="#ffeef4"/>
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(20,6)">
+    <!-- body -->
+    <ellipse cx="100" cy="78" rx="62" ry="44" fill="url(#pigskin)" stroke="#ffd6e8" stroke-width="3"/>
+    <!-- head -->
+    <circle cx="70" cy="54" r="26" fill="#fff4f6" stroke="#ffd1e6" stroke-width="2"/>
+    <!-- snout -->
+    <ellipse cx="76" cy="62" rx="12" ry="8" fill="#ffb6cf"/>
+    <circle cx="72" cy="60" r="1.8" fill="#8f4762"/>
+    <circle cx="80" cy="60" r="1.8" fill="#8f4762"/>
+    <!-- eyes -->
+    <circle cx="64" cy="52" r="3" fill="#8f4762"/>
+    <circle cx="76" cy="52" r="3" fill="#8f4762"/>
+    <!-- tail -->
+    <path d="M150 70 q12 -8 18 0" stroke="#ff9fc9" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <!-- feet -->
+    <rect x="74" y="110" width="10" height="18" rx="3" fill="#ffeef4"/>
+    <rect x="108" y="110" width="10" height="18" rx="3" fill="#ffeef4"/>
+  </g>
+</svg>

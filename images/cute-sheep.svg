@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 160" width="400" height="320" role="img" aria-label="可爱羊插画">
+  <defs>
+    <linearGradient id="wool" x1="0" x2="1">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset="1" stop-color="#fff5f8"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="b"/>
+      <feBlend in="SourceGraphic" in2="b"/>
+    </filter>
+  </defs>
+
+  <!-- body -->
+  <g transform="translate(20,10)">
+    <ellipse cx="70" cy="70" rx="60" ry="44" fill="url(#wool)" stroke="#ffdfe9" stroke-width="3" filter="url(#soft)"/>
+    <!-- fluff -->
+    <circle cx="42" cy="46" r="18" fill="#fff" stroke="#ffe6f0" stroke-width="2"/>
+    <circle cx="80" cy="36" r="20" fill="#fff" stroke="#ffe6f0" stroke-width="2"/>
+    <circle cx="110" cy="50" r="16" fill="#fff" stroke="#ffe6f0" stroke-width="2"/>
+
+    <!-- face -->
+    <ellipse cx="70" cy="72" rx="28" ry="22" fill="#fff4f6" stroke="#ffdae8" stroke-width="2"/>
+    <circle cx="60" cy="70" r="3.5" fill="#8f4762"/>
+    <circle cx="80" cy="70" r="3.5" fill="#8f4762"/>
+    <path d="M62 82 q8 6 16 0" stroke="#ff9fc9" stroke-width="2" fill="none" stroke-linecap="round"/>
+
+    <!-- legs -->
+    <rect x="48" y="102" width="10" height="18" rx="3" fill="#ffebf3"/>
+    <rect x="82" y="102" width="10" height="18" rx="3" fill="#ffebf3"/>
+
+    <!-- ear -->
+    <path d="M50 60 q-12 -8 -6 -20" fill="#fff4f6" stroke="#ffdae8" stroke-width="1.5"/>
+
+  </g>
+</svg>

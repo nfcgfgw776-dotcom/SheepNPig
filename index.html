@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SheepNPig - 羊羊和猪猪的恋爱小屋</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page-bg"></div>
+
+  <div class="welcome-screen" id="welcomeScreen">
+    <div class="welcome-card">
+      <h1>欢迎来到羊羊和猪猪的恋爱小屋</h1>
+      <p>点击任意位置或等待 2 秒，进入甜蜜时间线。</p>
+      <div class="cute-mask"></div>
+    </div>
+  </div>
+
+  <main class="app-container hidden" id="appContainer">
+    <header class="top-bar">
+      <div>
+        <h1>张炀&朱国轩的恋爱记录</h1>
+      </div>
+      <div class="heart-icon">❤</div>
+    </header>
+
+    <section class="timeline-panel">
+      <div class="timeline-grid">
+        <div class="timeline-column timeline-left">
+          <div class="timeline-intro">
+            <h2>时间线</h2>
+          </div>
+          <div class="timeline-list" id="timelineList">
+            <!-- timeline entries rendered here -->
+          </div>
+        </div>
+
+        <aside class="timeline-column timeline-right">
+          <div class="controls">
+            <div class="timeline-controls">
+              <label>
+                年份
+                <select id="yearSelect"></select>
+              </label>
+              <label>
+                月份
+                <select id="monthSelect"></select>
+              </label>
+              <label>
+                日
+                <select id="daySelect"></select>
+              </label>
+            </div>
+
+            <div class="entry-form">
+              <textarea id="entryText" placeholder="写下你们的甜蜜回忆..." rows="4"></textarea>
+              <label class="image-upload">
+                添加照片
+                <input type="file" id="photoInput" accept="image/*" />
+              </label>
+              <button id="addEntryBtn">添加到时间线</button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <template id="timelineEntryTemplate">
+    <div class="record-card">
+      <div class="record-date"></div>
+      <div class="record-text"></div>
+      <img class="record-photo hidden" src="" alt="恋爱照片" />
+      <div class="record-actions">
+        <button class="edit-btn">编辑</button>
+        <button class="delete-btn">删除</button>
+      </div>
+    </div>
+  </template>
+
+  <!-- 可爱计时小组件：使用外部插画，显示从 2026-05-17 起两人在一起的天数 -->
+  <div class="together-widget" id="togetherWidget" aria-live="polite">
+    <div class="chars">
+      <img src="images/cute-sheep.svg" class="char sheep" alt="羊羊" />
+      <img src="images/cute-pig.svg" class="char pig" alt="猪猪" />
+    </div>
+
+    <div class="counter">
+      <div class="label">在一起自 2026 年 5 月 17 日</div>
+      <div class="value" id="togetherCounter">计算中...</div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
