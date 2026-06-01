@@ -11,6 +11,8 @@ const timelineEntryTemplate = document.getElementById("timelineEntryTemplate");
 
 let selectedPhotoData = "";
 const STORAGE_KEY = "sheepnpigTimelineEntries";
+const STORAGE_KEY_BACKUP = "sheepnpigTimelineEntriesBackup_v1";
+const BACKUP_META_KEY = "sheepnpigTimelineEntriesBackupMeta_v1";
 let entries = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
 
 // Ensure initial record for 2026-05-17 exists
@@ -20,6 +22,21 @@ if (!entries.some(e => e.date === initialDate)) {
   entries.push({ date: initialDate, text: initialText, photo: '', createdAt: Date.now() });
   saveEntries();
 }
+
+// Create an automatic local backup if entries exist and no backup present
+function ensureBackupOnLoad() {
+  try {
+    const haveBackup = localStorage.getItem(STORAGE_KEY_BACKUP);
+    if (entries && entries.length && !haveBackup) {
+      localStorage.setItem(STORAGE_KEY_BACKUP, JSON.stringify(entries));
+      localStorage.setItem(BACKUP_META_KEY, JSON.stringify({ createdAt: Date.now() }));
+      console.info('Automatic local backup created.');
+    }
+  } catch (err) {
+    console.warn('Failed to create local backup:', err);
+  }
+}
+ensureBackupOnLoad();
 
 function showTimeline() {
   welcomeScreen.classList.add("hidden");
@@ -101,6 +118,13 @@ function renderTimeline() {
 
 function saveEntries() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  try {
+    // keep a recent backup copy as well
+    localStorage.setItem(STORAGE_KEY_BACKUP, JSON.stringify(entries));
+    localStorage.setItem(BACKUP_META_KEY, JSON.stringify({ createdAt: Date.now() }));
+  } catch (err) {
+    console.warn('Failed to update backup in localStorage:', err);
+  }
 }
 
 photoInput.addEventListener("change", (event) => {
@@ -156,6 +180,67 @@ addEntryBtn.addEventListener("click", () => {
   // Otherwise use already-read data (or none)
   pushEntry(selectedPhotoData);
 });
+
+// Export and Import handlers to preserve user data across updates
+const exportBtn = document.getElementById('exportBtn');
+const importInput = document.getElementById('importInput');
+
+if (exportBtn) {
+  exportBtn.addEventListener('click', () => {
+    try {
+      const data = JSON.stringify(entries, null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const ts = new Date().toISOString().replace(/[:.]/g, '-');
+      a.href = url;
+      a.download = `sheepnpig-entries-${ts}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('导出失败：' + err.message);
+    }
+  });
+}
+
+if (importInput) {
+  importInput.addEventListener('change', (ev) => {
+    const f = ev.target.files && ev.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const parsed = JSON.parse(r.result);
+        if (!Array.isArray(parsed)) throw new Error('文件格式不正确：需要数组');
+        // Merge without duplicating entries (by createdAt when available)
+        let added = 0;
+        parsed.forEach((item) => {
+          const has = entries.some(e => (e.createdAt && item.createdAt && e.createdAt === item.createdAt) || (e.date === item.date && e.text === item.text));
+          if (!has) {
+            // ensure createdAt exists
+            if (!item.createdAt) item.createdAt = Date.now() + Math.floor(Math.random() * 1000);
+            entries.push(item);
+            added += 1;
+          }
+        });
+        if (added) {
+          saveEntries();
+          renderTimeline();
+          alert(`已合并 ${added} 条新记录，原有数据已保留。`);
+        } else {
+          alert('未检测到可合并的新记录。');
+        }
+      } catch (err) {
+        alert('导入失败：' + err.message);
+      }
+    };
+    r.readAsText(f);
+    // clear input so same file can be reselected later
+    ev.target.value = '';
+  });
+}
 
 yearSelect.addEventListener("change", updateDays);
 monthSelect.addEventListener("change", updateDays);
