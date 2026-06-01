@@ -1,11 +1,11 @@
-// Replace these values with your Firebase project configuration.
-// Create a Firebase Web app and enable Realtime Database with public read/write rules.
+// Firebase configuration provided by the user — used by script.js to initialize.
 window.firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  databaseURL: "https://YOUR_PROJECT_ID.firebaseio.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyBsfjZNj0kCu5lSmnle62Y3VTX8IR9-Ge0",
+  authDomain: "sheepnpig-37db4.firebaseapp.com",
+  databaseURL: "https://sheepnpig-37db4-default-rtdb.firebaseio.com",
+  projectId: "sheepnpig-37db4",
+  storageBucket: "sheepnpig-37db4.firebasestorage.app",
+  messagingSenderId: "777849242096",
+  appId: "1:777849242096:web:7aa642dc5de73935339d35",
+  measurementId: "G-YPMYG7LJJY"
 };
