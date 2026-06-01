@@ -21,3 +21,25 @@
 1. 将本目录上传到 GitHub 仓库（推荐仓库名 `SheepNPig`）
 2. 在仓库设置中启用 GitHub Pages，选择 `main` 分支和根目录
 3. 页面即可通过 GitHub Pages 访问
+
+## 跨设备同步说明
+
+当前页面已支持与 Firebase Realtime Database 同步。要实现手机、电脑、所有访问者看到相同最新内容：
+
+1. 创建一个 Firebase 项目并添加 Web 应用
+2. 启用 Realtime Database
+3. 设定数据库规则为：
+
+```json
+{
+  "rules": {
+    ".read": true,
+    ".write": true
+  }
+}
+```
+
+4. 将 Firebase 项目的配置填入 `firebase-config.js`
+5. 上传并刷新页面，所有访问者将从 Firebase 读取并同步最新修改
+
+如果你不希望使用 Firebase，同步将退回为本地浏览器存储，只能在本机上看到修改。

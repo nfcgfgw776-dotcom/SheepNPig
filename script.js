@@ -16,7 +16,9 @@ const STORAGE_KEY = "sheepnpigTimelineEntries";
 const STORAGE_KEY_BACKUP = "sheepnpigTimelineEntriesBackup_v1";
 const BACKUP_META_KEY = "sheepnpigTimelineEntriesBackupMeta_v1";
 const PUBLIC_TIMELINE_URL = "timeline.json";
+const REMOTE_PATH = "timelineEntries";
 let entries = [];
+let remoteTimelineRef = null;
 
 // Shared base entry for the public timeline
 const initialDate = '2026-05-17';
@@ -37,8 +39,75 @@ function ensureInitialEntry(entriesList) {
   }
 }
 
+function loadLocalEntries() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+  } catch (err) {
+    return [];
+  }
+}
+
+function normalizeEntries(rawEntries) {
+  if (!Array.isArray(rawEntries)) return [];
+  return rawEntries.map((item) => ({
+    date: item.date || '',
+    text: item.text || '',
+    photo: item.photo || '',
+    photoName: item.photoName || '',
+    photoType: item.photoType || '',
+    createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
+  }));
+}
+
+function initRemoteSync() {
+  if (window.firebaseConfig && typeof firebase !== 'undefined' && window.firebaseConfig.apiKey && window.firebaseConfig.apiKey !== 'YOUR_API_KEY') {
+    try {
+      firebase.initializeApp(window.firebaseConfig);
+      const db = firebase.database();
+      remoteTimelineRef = db.ref(REMOTE_PATH);
+      remoteTimelineRef.on('value', (snapshot) => {
+        if (!snapshot.exists()) return;
+        const remoteEntries = normalizeEntries(snapshot.val());
+        entries = remoteEntries;
+        saveEntries(false);
+        renderTimeline();
+      });
+    } catch (err) {
+      console.warn('Remote sync init failed:', err);
+      remoteTimelineRef = null;
+    }
+  } else {
+    remoteTimelineRef = null;
+  }
+}
+
+function loadRemoteTimeline() {
+  if (!remoteTimelineRef) {
+    return Promise.resolve(null);
+  }
+  return remoteTimelineRef.once('value').then((snapshot) => {
+    if (!snapshot.exists()) return null;
+    return normalizeEntries(snapshot.val());
+  });
+}
+
+function saveEntries(alsoRemote = true) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  try {
+    localStorage.setItem(STORAGE_KEY_BACKUP, JSON.stringify(entries));
+    localStorage.setItem(BACKUP_META_KEY, JSON.stringify({ createdAt: Date.now() }));
+  } catch (err) {
+    console.warn('Failed to update backup in localStorage:', err);
+  }
+  if (alsoRemote && remoteTimelineRef) {
+    remoteTimelineRef.set(entries).catch((err) => {
+      console.warn('Remote save failed:', err);
+    });
+  }
+}
+
 function loadPublicTimeline() {
-  const localEntries = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+  const localEntries = loadLocalEntries();
   return fetch(PUBLIC_TIMELINE_URL)
     .then((response) => {
       if (!response.ok) {
@@ -59,6 +128,23 @@ function loadPublicTimeline() {
       ensureInitialEntry(entries);
       saveEntries();
     });
+}
+
+function loadInitialTimeline() {
+  const localEntries = loadLocalEntries();
+  if (!remoteTimelineRef) {
+    return loadPublicTimeline();
+  }
+  return loadRemoteTimeline()
+    .then((remoteEntries) => {
+      if (remoteEntries && remoteEntries.length) {
+        entries = remoteEntries;
+        saveEntries(false);
+      } else {
+        return loadPublicTimeline();
+      }
+    })
+    .catch(() => loadPublicTimeline());
 }
 
 // Create an automatic local backup if entries exist and no backup present
@@ -177,17 +263,6 @@ function renderTimeline() {
 
     timelineList.appendChild(clone);
   });
-}
-
-function saveEntries() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-  try {
-    // keep a recent backup copy as well
-    localStorage.setItem(STORAGE_KEY_BACKUP, JSON.stringify(entries));
-    localStorage.setItem(BACKUP_META_KEY, JSON.stringify({ createdAt: Date.now() }));
-  } catch (err) {
-    console.warn('Failed to update backup in localStorage:', err);
-  }
 }
 
 photoInput.addEventListener("change", (event) => {
@@ -345,7 +420,8 @@ setTimeout(() => {
 }, 2000);
 
 fillDateSelectors();
-loadPublicTimeline().then(renderTimeline);
+initRemoteSync();
+loadInitialTimeline().then(renderTimeline);
 
 
 // --- Timeline edit/delete handling (event delegation) ---
