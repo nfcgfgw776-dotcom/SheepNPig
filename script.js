@@ -299,7 +299,7 @@ timelineList.addEventListener('click', (e) => {
     changeBtn.className = 'change-photo-btn';
     const hiddenFile = document.createElement('input');
     hiddenFile.type = 'file';
-    hiddenFile.accept = 'image/*';
+    hiddenFile.accept = 'image/*,image/heic,image/heif,image/webp,image/svg+xml,image/bmp,image/tiff';
     hiddenFile.style.display = 'none';
     card.appendChild(hiddenFile);
     changeBtn.addEventListener('click', () => hiddenFile.click());
