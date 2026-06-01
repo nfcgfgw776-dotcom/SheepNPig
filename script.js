@@ -154,8 +154,24 @@ addEntryBtn.addEventListener("click", () => {
       return;
     }
 
+    const targetDate = `${year}-${month}-${day}`;
+    const existingIdx = entries.findIndex(e => e.date === targetDate);
+    if (existingIdx !== -1) {
+      // Update existing entry for that date: replace photo if provided, replace text if provided
+      if (text) entries[existingIdx].text = text;
+      if (photoData) entries[existingIdx].photo = photoData;
+      saveEntries();
+      renderTimeline();
+      entryText.value = "";
+      photoInput.value = "";
+      selectedPhotoData = "";
+      alert('已更新该日期的条目（替换或添加照片/文字）。');
+      return;
+    }
+
+    // create a new entry when no existing date found
     entries.push({
-      date: `${year}-${month}-${day}`,
+      date: targetDate,
       text,
       photo: photoData || "",
       createdAt: Date.now(),
@@ -181,66 +197,7 @@ addEntryBtn.addEventListener("click", () => {
   pushEntry(selectedPhotoData);
 });
 
-// Export and Import handlers to preserve user data across updates
-const exportBtn = document.getElementById('exportBtn');
-const importInput = document.getElementById('importInput');
-
-if (exportBtn) {
-  exportBtn.addEventListener('click', () => {
-    try {
-      const data = JSON.stringify(entries, null, 2);
-      const blob = new Blob([data], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      const ts = new Date().toISOString().replace(/[:.]/g, '-');
-      a.href = url;
-      a.download = `sheepnpig-entries-${ts}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      alert('导出失败：' + err.message);
-    }
-  });
-}
-
-if (importInput) {
-  importInput.addEventListener('change', (ev) => {
-    const f = ev.target.files && ev.target.files[0];
-    if (!f) return;
-    const r = new FileReader();
-    r.onload = () => {
-      try {
-        const parsed = JSON.parse(r.result);
-        if (!Array.isArray(parsed)) throw new Error('文件格式不正确：需要数组');
-        // Merge without duplicating entries (by createdAt when available)
-        let added = 0;
-        parsed.forEach((item) => {
-          const has = entries.some(e => (e.createdAt && item.createdAt && e.createdAt === item.createdAt) || (e.date === item.date && e.text === item.text));
-          if (!has) {
-            // ensure createdAt exists
-            if (!item.createdAt) item.createdAt = Date.now() + Math.floor(Math.random() * 1000);
-            entries.push(item);
-            added += 1;
-          }
-        });
-        if (added) {
-          saveEntries();
-          renderTimeline();
-          alert(`已合并 ${added} 条新记录，原有数据已保留。`);
-        } else {
-          alert('未检测到可合并的新记录。');
-        }
-      } catch (err) {
-        alert('导入失败：' + err.message);
-      }
-    };
-    r.readAsText(f);
-    // clear input so same file can be reselected later
-    ev.target.value = '';
-  });
-}
+// (export/import UI removed by user request)
 
 yearSelect.addEventListener("change", updateDays);
 monthSelect.addEventListener("change", updateDays);
