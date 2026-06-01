@@ -43,7 +43,12 @@ function fillDateSelectors() {
     monthSelect.appendChild(option);
   }
 
+  // Set selectors to today's date by default for better UX
+  const today = new Date();
+  yearSelect.value = today.getFullYear();
+  monthSelect.value = today.getMonth() + 1;
   updateDays();
+  daySelect.value = today.getDate();
 }
 
 function updateDays() {
@@ -114,27 +119,42 @@ photoInput.addEventListener("change", (event) => {
 
 addEntryBtn.addEventListener("click", () => {
   const year = yearSelect.value;
-  const month = monthSelect.value.padStart(2, "0");
-  const day = daySelect.value.padStart(2, "0");
+  const month = String(monthSelect.value).padStart(2, "0");
+  const day = String(daySelect.value).padStart(2, "0");
   const text = entryText.value.trim();
 
-  if (!text && !selectedPhotoData) {
-    alert("请填写文字或选择一张照片。");
+  // Helper to actually push the entry and update UI
+  const pushEntry = (photoData) => {
+    if (!text && !photoData) {
+      alert("请填写文字或选择一张照片。\n（文本或照片至少需填写一项）");
+      return;
+    }
+
+    entries.push({
+      date: `${year}-${month}-${day}`,
+      text,
+      photo: photoData || "",
+      createdAt: Date.now(),
+    });
+
+    saveEntries();
+    renderTimeline();
+    entryText.value = "";
+    photoInput.value = "";
+    selectedPhotoData = "";
+  };
+
+  // If a file is selected but FileReader hasn't finished, read it now and then push
+  const file = photoInput.files && photoInput.files[0];
+  if (file && !selectedPhotoData) {
+    const reader = new FileReader();
+    reader.onload = () => pushEntry(reader.result);
+    reader.readAsDataURL(file);
     return;
   }
 
-  entries.push({
-    date: `${year}-${month}-${day}`,
-    text,
-    photo: selectedPhotoData,
-    createdAt: Date.now(),
-  });
-
-  saveEntries();
-  renderTimeline();
-  entryText.value = "";
-  photoInput.value = "";
-  selectedPhotoData = "";
+  // Otherwise use already-read data (or none)
+  pushEntry(selectedPhotoData);
 });
 
 yearSelect.addEventListener("change", updateDays);
