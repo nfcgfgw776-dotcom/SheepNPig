@@ -57,15 +57,12 @@
             <div class="entry-form">
               <textarea id="entryText" placeholder="写下你们的甜蜜回忆..." rows="4"></textarea>
               <label class="image-upload">
-                添加照片
-                <input type="file" id="photoInput" accept="*/*" />
+                添加照片/附件
+                <input type="file" id="photoInput" accept="*/*" multiple />
               </label>
               <button id="addEntryBtn">添加到时间线</button>
               <div class="data-controls">
                 <button id="exportBtn" type="button">导出数据</button>
-                <label class="import-label">导入数据
-                  <input type="file" id="importInput" accept="application/json" />
-                </label>
               </div>
             </div>
           </div>
@@ -78,10 +75,15 @@
     <div class="record-card">
       <div class="record-date"></div>
       <div class="record-text"></div>
-      <img class="record-photo hidden" src="" alt="恋爱照片" />
+      <div class="attachments"></div>
+      <div class="comment-list"></div>
       <div class="record-actions">
         <button class="edit-btn">编辑</button>
         <button class="delete-btn">删除</button>
+      </div>
+      <div class="comment-form">
+        <textarea class="comment-input" placeholder="写匿名评论..." rows="2"></textarea>
+        <button class="comment-submit-btn">发布评论</button>
       </div>
     </div>
   </template>

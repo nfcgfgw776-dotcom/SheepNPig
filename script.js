@@ -9,9 +9,8 @@ const addEntryBtn = document.getElementById("addEntryBtn");
 const timelineList = document.getElementById("timelineList");
 const timelineEntryTemplate = document.getElementById("timelineEntryTemplate");
 
-let selectedPhotoData = "";
-let selectedPhotoName = "";
-let selectedPhotoType = "";
+let selectedAttachments = [];
+let attachmentReadPromise = null;
 const STORAGE_KEY = "sheepnpigTimelineEntries";
 const STORAGE_KEY_BACKUP = "sheepnpigTimelineEntriesBackup_v1";
 const BACKUP_META_KEY = "sheepnpigTimelineEntriesBackupMeta_v1";
@@ -35,28 +34,79 @@ function mergeLocalEntries(publicEntries, localEntries) {
 
 function ensureInitialEntry(entriesList) {
   if (!entriesList.some(e => e.date === initialDate)) {
-    entriesList.push({ date: initialDate, text: initialText, photo: '', photoName: '', photoType: '', createdAt: Date.now() });
+    entriesList.push({
+      date: initialDate,
+      text: initialText,
+      attachments: [],
+      comments: [],
+      createdAt: Date.now(),
+    });
   }
 }
 
 function loadLocalEntries() {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    let entriesFromStorage = normalizeEntries(raw);
+    if (!entriesFromStorage.length) {
+      const backupRaw = JSON.parse(localStorage.getItem(STORAGE_KEY_BACKUP) || "[]");
+      const backupEntries = normalizeEntries(backupRaw);
+      if (backupEntries.length) {
+        entriesFromStorage = backupEntries;
+      }
+    }
+    return entriesFromStorage;
   } catch (err) {
     return [];
   }
 }
 
+function normalizeAttachment(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    data: raw.data || '',
+    name: raw.name || 'attachment',
+    type: raw.type || '',
+  };
+}
+
+function normalizeComment(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    id: raw.id || `comment-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    text: raw.text || '',
+    createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now(),
+  };
+}
+
 function normalizeEntries(rawEntries) {
-  if (!Array.isArray(rawEntries)) return [];
-  return rawEntries.map((item) => ({
-    date: item.date || '',
-    text: item.text || '',
-    photo: item.photo || '',
-    photoName: item.photoName || '',
-    photoType: item.photoType || '',
-    createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
-  }));
+  if (!rawEntries) return [];
+  let items = rawEntries;
+  if (!Array.isArray(items)) {
+    if (typeof items === 'object') {
+      items = Object.values(items);
+    } else {
+      return [];
+    }
+  }
+  return items.map((item) => {
+    const attachments = Array.isArray(item.attachments)
+      ? item.attachments.map(normalizeAttachment).filter(Boolean)
+      : item.photo
+      ? [normalizeAttachment({ data: item.photo, name: item.photoName || 'attachment', type: item.photoType || '' })]
+      : [];
+    const comments = Array.isArray(item.comments)
+      ? item.comments.map(normalizeComment).filter(Boolean)
+      : [];
+
+    return {
+      date: item.date || '',
+      text: item.text || '',
+      attachments,
+      comments,
+      createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
+    };
+  });
 }
 
 function updateSyncStatus(message, isError = false) {
@@ -233,7 +283,9 @@ function renderTimeline() {
     const card = clone.querySelector(".record-card");
     const dateEl = clone.querySelector(".record-date");
     const textEl = clone.querySelector(".record-text");
-    const photoEl = clone.querySelector(".record-photo");
+    const attachmentsEl = clone.querySelector('.attachments');
+    const commentListEl = clone.querySelector('.comment-list');
+    const commentInputEl = clone.querySelector('.comment-input');
     const editBtn = clone.querySelector('.edit-btn');
     const delBtn = clone.querySelector('.delete-btn');
 
@@ -241,54 +293,113 @@ function renderTimeline() {
     dateEl.textContent = entry.date;
     textEl.textContent = entry.text;
 
-    if (entry.photo) {
-      // remove any prior download link in this cloned card
-      const oldLink = clone.querySelector('.download-photo');
-      if (oldLink) oldLink.remove();
-
-      // if file type is known and not an image, show a download link instead
-      if (entry.photoType && !entry.photoType.startsWith('image/')) {
-        photoEl.classList.add('hidden');
-        const linkEl = document.createElement('a');
-        linkEl.className = 'download-photo';
-        linkEl.href = entry.photo;
-        linkEl.download = entry.photoName || 'photo';
-        linkEl.textContent = `下载: ${entry.photoName || '照片'}`;
-        card.appendChild(linkEl);
-      } else {
-        // try to display as image; if browser can't render, fallback to download link
-        photoEl.src = entry.photo;
-        photoEl.classList.remove("hidden");
-        photoEl.onerror = () => {
-          photoEl.classList.add('hidden');
-          const linkEl = document.createElement('a');
-          linkEl.className = 'download-photo';
-          linkEl.href = entry.photo;
-          linkEl.download = entry.photoName || 'photo';
-          linkEl.textContent = `下载: ${entry.photoName || '照片'}`;
-          card.appendChild(linkEl);
-        };
-      }
+    if (Array.isArray(entry.attachments) && entry.attachments.length) {
+      entry.attachments.forEach((attachment) => {
+        if (attachment.type && attachment.type.startsWith('image/')) {
+          const img = document.createElement('img');
+          img.className = 'record-photo';
+          img.src = attachment.data;
+          img.alt = attachment.name || '恋爱照片';
+          img.onerror = () => {
+            img.remove();
+            const link = document.createElement('a');
+            link.className = 'attachment-link';
+            link.href = attachment.data;
+            link.download = attachment.name || 'attachment';
+            link.textContent = `下载: ${attachment.name || '照片'}`;
+            attachmentsEl.appendChild(link);
+          };
+          attachmentsEl.appendChild(img);
+        } else {
+          const link = document.createElement('a');
+          link.className = 'attachment-link';
+          link.href = attachment.data;
+          link.download = attachment.name || 'attachment';
+          link.textContent = `下载: ${attachment.name || '附件'}`;
+          attachmentsEl.appendChild(link);
+        }
+      });
     }
+
+    if (!entry.comments || !entry.comments.length) {
+      const empty = document.createElement('div');
+      empty.className = 'comment-empty';
+      empty.textContent = '还没有评论，留下你的小小心愿吧。';
+      commentListEl.appendChild(empty);
+    } else {
+      entry.comments.sort((a, b) => a.createdAt - b.createdAt).forEach((comment) => {
+        const commentItem = document.createElement('div');
+        commentItem.className = 'comment-item';
+        commentItem.textContent = comment.text;
+        commentListEl.appendChild(commentItem);
+      });
+    }
+
+    editBtn.dataset.createdAt = entry.createdAt;
+    delBtn.dataset.createdAt = entry.createdAt;
+    commentInputEl.dataset.createdAt = entry.createdAt;
 
     timelineList.appendChild(clone);
   });
 }
 
-photoInput.addEventListener("change", (event) => {
-  const file = event.target.files[0];
-  if (!file) {
-    selectedPhotoData = "";
+timelineList.addEventListener('click', (event) => {
+  const submitBtn = event.target.closest('.comment-submit-btn');
+  if (!submitBtn) return;
+
+  const card = submitBtn.closest('.record-card');
+  if (!card) return;
+  const createdAt = Number(card.dataset.createdAt);
+  const input = card.querySelector('.comment-input');
+  if (!input) return;
+
+  const commentText = input.value.trim();
+  if (!commentText) {
+    alert('请输入评论内容后再发布。');
     return;
   }
 
-  const reader = new FileReader();
-  reader.onload = () => {
-    selectedPhotoData = reader.result;
-    selectedPhotoName = file.name || '';
-    selectedPhotoType = file.type || '';
-  };
-  reader.readAsDataURL(file);
+  const entry = entries.find((item) => item.createdAt === createdAt);
+  if (!entry) return;
+
+  entry.comments = entry.comments || [];
+  entry.comments.push({
+    id: `comment-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    text: commentText,
+    createdAt: Date.now(),
+  });
+  saveEntries();
+  renderTimeline();
+});
+
+photoInput.addEventListener("change", (event) => {
+  const files = Array.from(event.target.files || []);
+  if (!files.length) {
+    selectedAttachments = [];
+    attachmentReadPromise = null;
+    return;
+  }
+
+  attachmentReadPromise = Promise.all(files.map((file) => new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve({
+        data: reader.result,
+        name: file.name || 'attachment',
+        type: file.type || '',
+      });
+    };
+    reader.readAsDataURL(file);
+  })));
+
+  attachmentReadPromise
+    .then((attachments) => {
+      selectedAttachments = attachments;
+    })
+    .catch((err) => {
+      console.warn('附件读取失败：', err);
+      selectedAttachments = [];
+    });
 });
 
 addEntryBtn.addEventListener("click", () => {
@@ -296,42 +407,35 @@ addEntryBtn.addEventListener("click", () => {
   const month = String(monthSelect.value).padStart(2, "0");
   const day = String(daySelect.value).padStart(2, "0");
   const text = entryText.value.trim();
+  const targetDate = `${year}-${month}-${day}`;
 
-  // Helper to actually push or update the entry and update UI
-  const pushEntry = (photoData, photoName = '', photoType = '') => {
-    if (!text && !photoData) {
-      alert("请填写文字或选择一张照片。\n（文本或照片至少需填写一项）");
+  const addOrUpdate = (attachments) => {
+    if (!text && (!attachments || !attachments.length)) {
+      alert("请填写文字或选择一张照片/附件。\n（文本或附件至少需填写一项）");
       return;
     }
 
-    const targetDate = `${year}-${month}-${day}`;
-    const existingIdx = entries.findIndex(e => e.date === targetDate);
+    const existingIdx = entries.findIndex((e) => e.date === targetDate);
     if (existingIdx !== -1) {
-      // Update existing entry for that date: replace photo if provided, replace text if provided
       if (text) entries[existingIdx].text = text;
-      if (photoData) {
-        entries[existingIdx].photo = photoData;
-        entries[existingIdx].photoName = photoName || '';
-        entries[existingIdx].photoType = photoType || '';
+      if (attachments && attachments.length) {
+        entries[existingIdx].attachments = [...entries[existingIdx].attachments, ...attachments];
       }
       saveEntries();
       renderTimeline();
       entryText.value = "";
       photoInput.value = "";
-      selectedPhotoData = "";
-      selectedPhotoName = '';
-      selectedPhotoType = '';
-      alert('已更新该日期的条目（替换或添加照片/文字）。');
+      selectedAttachments = [];
+      attachmentReadPromise = null;
+      alert('已更新该日期的条目，照片/附件已追加。');
       return;
     }
 
-    // create a new entry when no existing date found
     entries.push({
       date: targetDate,
       text,
-      photo: photoData || "",
-      photoName: photoName || '',
-      photoType: photoType || '',
+      attachments: attachments || [],
+      comments: [],
       createdAt: Date.now(),
     });
 
@@ -339,27 +443,23 @@ addEntryBtn.addEventListener("click", () => {
     renderTimeline();
     entryText.value = "";
     photoInput.value = "";
-    selectedPhotoData = "";
-    selectedPhotoName = '';
-    selectedPhotoType = '';
+    selectedAttachments = [];
+    attachmentReadPromise = null;
   };
 
-  // If a file is selected but FileReader hasn't finished, read it now and then push
-  const file = photoInput.files && photoInput.files[0];
-  if (file && !selectedPhotoData) {
-    const reader = new FileReader();
-    reader.onload = () => pushEntry(reader.result, file.name || '', file.type || '');
-    reader.readAsDataURL(file);
-    return;
+  const files = photoInput.files || [];
+  if (files.length && (!selectedAttachments.length || selectedAttachments.length !== files.length)) {
+    if (attachmentReadPromise) {
+      attachmentReadPromise.then((attachments) => addOrUpdate(attachments));
+      return;
+    }
   }
 
-  // Otherwise use already-read data (or none)
-  pushEntry(selectedPhotoData, selectedPhotoName, selectedPhotoType);
+  addOrUpdate(selectedAttachments);
 });
 
-// Export and Import handlers to preserve user data across updates
+// Export handler to preserve user data across updates
 const exportBtn = document.getElementById('exportBtn');
-const importInput = document.getElementById('importInput');
 
 if (exportBtn) {
   exportBtn.addEventListener('click', () => {
@@ -378,43 +478,6 @@ if (exportBtn) {
     } catch (err) {
       alert('导出失败：' + err.message);
     }
-  });
-}
-
-if (importInput) {
-  importInput.addEventListener('change', (ev) => {
-    const f = ev.target.files && ev.target.files[0];
-    if (!f) return;
-    const r = new FileReader();
-    r.onload = () => {
-      try {
-        const parsed = JSON.parse(r.result);
-        if (!Array.isArray(parsed)) throw new Error('文件格式不正确：需要数组');
-        // Merge without duplicating entries (by createdAt when available)
-        let added = 0;
-        parsed.forEach((item) => {
-          const has = entries.some(e => (e.createdAt && item.createdAt && e.createdAt === item.createdAt) || (e.date === item.date && e.text === item.text));
-          if (!has) {
-            // ensure createdAt exists
-            if (!item.createdAt) item.createdAt = Date.now() + Math.floor(Math.random() * 1000);
-            entries.push(item);
-            added += 1;
-          }
-        });
-        if (added) {
-          saveEntries();
-          renderTimeline();
-          alert(`已合并 ${added} 条新记录，原有数据已保留。`);
-        } else {
-          alert('未检测到可合并的新记录。');
-        }
-      } catch (err) {
-        alert('导入失败：' + err.message);
-      }
-    };
-    r.readAsText(f);
-    // clear input so same file can be reselected later
-    ev.target.value = '';
   });
 }
 
@@ -459,9 +522,7 @@ timelineList.addEventListener('click', (e) => {
   }
 
   if (editButton) {
-    // enter edit mode
     const textEl = card.querySelector('.record-text');
-    const photoEl = card.querySelector('.record-photo');
     const originalText = textEl.textContent;
     card.classList.add('record-editing');
     textEl.innerHTML = '';
@@ -470,9 +531,8 @@ timelineList.addEventListener('click', (e) => {
     ta.className = 'edit-textarea';
     textEl.appendChild(ta);
 
-    // photo change control: preview selected image, but only replace on Save
     const changeBtn = document.createElement('button');
-    changeBtn.textContent = '更换照片';
+    changeBtn.textContent = '追加附件';
     changeBtn.type = 'button';
     changeBtn.className = 'change-photo-btn';
     const hiddenFile = document.createElement('input');
@@ -482,28 +542,21 @@ timelineList.addEventListener('click', (e) => {
     card.appendChild(hiddenFile);
     changeBtn.addEventListener('click', () => hiddenFile.click());
 
-    // pendingPhoto holds the new image until user clicks Save (with metadata)
-    let pendingPhotoName = '';
-    let pendingPhotoType = '';
-    let pendingPhoto = null;
+    let pendingAttachment = null;
     hiddenFile.addEventListener('change', (ev) => {
       const f = ev.target.files[0];
       if (!f) return;
       const r = new FileReader();
       r.onload = () => {
-        const b64 = r.result;
-        pendingPhoto = b64;
-        pendingPhotoName = f.name || '';
-        pendingPhotoType = f.type || '';
-        if (photoEl) {
-          photoEl.src = b64;
-          photoEl.classList.remove('hidden');
-        }
+        pendingAttachment = {
+          data: r.result,
+          name: f.name || 'attachment',
+          type: f.type || '',
+        };
       };
       r.readAsDataURL(f);
     });
 
-    // replace actions with save/cancel
     const actions = card.querySelector('.record-actions');
     const saveBtn = document.createElement('button');
     saveBtn.textContent = '保存';
@@ -517,21 +570,20 @@ timelineList.addEventListener('click', (e) => {
 
     saveBtn.addEventListener('click', () => {
       const newText = ta.value.trim();
-      let photoChanged = false;
+      let attachmentAdded = false;
       if (idx !== -1) {
         entries[idx].text = newText;
-        if (pendingPhoto) {
-          entries[idx].photo = pendingPhoto;
-          entries[idx].photoName = pendingPhotoName || '';
-          entries[idx].photoType = pendingPhotoType || '';
-          photoChanged = true;
+        if (pendingAttachment) {
+          entries[idx].attachments = entries[idx].attachments || [];
+          entries[idx].attachments.push(pendingAttachment);
+          attachmentAdded = true;
         }
         saveEntries();
       }
       card.classList.remove('record-editing');
       renderTimeline();
-      if (photoChanged) {
-        alert('保存成功，照片已更换。');
+      if (attachmentAdded) {
+        alert('保存成功，附件已追加。');
       } else {
         alert('保存成功。');
       }
