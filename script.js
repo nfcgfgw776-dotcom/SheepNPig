@@ -59,6 +59,13 @@ function normalizeEntries(rawEntries) {
   }));
 }
 
+function updateSyncStatus(message, isError = false) {
+  const statusEl = document.getElementById('syncStatus');
+  if (!statusEl) return;
+  statusEl.textContent = `同步状态：${message}`;
+  statusEl.style.color = isError ? '#c0392b' : '#2c3e50';
+}
+
 function initRemoteSync() {
   if (window.firebaseConfig && typeof firebase !== 'undefined' && window.firebaseConfig.apiKey && window.firebaseConfig.apiKey !== 'YOUR_API_KEY') {
     try {
@@ -72,12 +79,15 @@ function initRemoteSync() {
         saveEntries(false);
         renderTimeline();
       });
+      updateSyncStatus('已启用实时同步，正在监听远程更改。');
     } catch (err) {
       console.warn('Remote sync init failed:', err);
       remoteTimelineRef = null;
+      updateSyncStatus('Firebase 初始化失败，已回退到本地页面显示。', true);
     }
   } else {
     remoteTimelineRef = null;
+    updateSyncStatus('未配置 Firebase，同步功能暂不可用；此页面仅显示本地/公开内容。', true);
   }
 }
 
