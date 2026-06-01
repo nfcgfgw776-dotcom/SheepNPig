@@ -15,14 +15,50 @@ let selectedPhotoType = "";
 const STORAGE_KEY = "sheepnpigTimelineEntries";
 const STORAGE_KEY_BACKUP = "sheepnpigTimelineEntriesBackup_v1";
 const BACKUP_META_KEY = "sheepnpigTimelineEntriesBackupMeta_v1";
-let entries = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+const PUBLIC_TIMELINE_URL = "timeline.json";
+let entries = [];
 
-// Ensure initial record for 2026-05-17 exists
+// Shared base entry for the public timeline
 const initialDate = '2026-05-17';
 const initialText = '炀炀和轩轩在一起啦！';
-if (!entries.some(e => e.date === initialDate)) {
-  entries.push({ date: initialDate, text: initialText, photo: '', photoName: '', photoType: '', createdAt: Date.now() });
-  saveEntries();
+
+function mergeLocalEntries(publicEntries, localEntries) {
+  const merged = [...publicEntries];
+  localEntries.forEach((item) => {
+    const exists = merged.some(e => (e.createdAt && item.createdAt && e.createdAt === item.createdAt) || (e.date === item.date && e.text === item.text));
+    if (!exists) merged.push(item);
+  });
+  return merged;
+}
+
+function ensureInitialEntry(entriesList) {
+  if (!entriesList.some(e => e.date === initialDate)) {
+    entriesList.push({ date: initialDate, text: initialText, photo: '', photoName: '', photoType: '', createdAt: Date.now() });
+  }
+}
+
+function loadPublicTimeline() {
+  const localEntries = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+  return fetch(PUBLIC_TIMELINE_URL)
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error('无法加载公开时间线');
+      }
+      return response.json();
+    })
+    .then((publicEntries) => {
+      if (!Array.isArray(publicEntries)) {
+        throw new Error('公开时间线格式不正确');
+      }
+      ensureInitialEntry(publicEntries);
+      entries = mergeLocalEntries(publicEntries, localEntries);
+      saveEntries();
+    })
+    .catch(() => {
+      entries = localEntries;
+      ensureInitialEntry(entries);
+      saveEntries();
+    });
 }
 
 // Create an automatic local backup if entries exist and no backup present
@@ -309,7 +345,8 @@ setTimeout(() => {
 }, 2000);
 
 fillDateSelectors();
-renderTimeline();
+loadPublicTimeline().then(renderTimeline);
+
 
 // --- Timeline edit/delete handling (event delegation) ---
 timelineList.addEventListener('click', (e) => {
