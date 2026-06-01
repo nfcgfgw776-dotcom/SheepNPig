@@ -292,7 +292,7 @@ timelineList.addEventListener('click', (e) => {
     ta.className = 'edit-textarea';
     textEl.appendChild(ta);
 
-    // photo change control
+    // photo change control: preview selected image, but only replace on Save
     const changeBtn = document.createElement('button');
     changeBtn.textContent = '更换照片';
     changeBtn.type = 'button';
@@ -303,18 +303,20 @@ timelineList.addEventListener('click', (e) => {
     hiddenFile.style.display = 'none';
     card.appendChild(hiddenFile);
     changeBtn.addEventListener('click', () => hiddenFile.click());
+
+    // pendingPhoto holds the new image until user clicks Save
+    let pendingPhoto = null;
     hiddenFile.addEventListener('change', (ev) => {
       const f = ev.target.files[0];
       if (!f) return;
       const r = new FileReader();
       r.onload = () => {
         const b64 = r.result;
+        pendingPhoto = b64;
         if (photoEl) {
           photoEl.src = b64;
           photoEl.classList.remove('hidden');
         }
-        if (idx !== -1) entries[idx].photo = b64;
-        saveEntries();
       };
       r.readAsDataURL(f);
     });
@@ -333,12 +335,22 @@ timelineList.addEventListener('click', (e) => {
 
     saveBtn.addEventListener('click', () => {
       const newText = ta.value.trim();
+      let photoChanged = false;
       if (idx !== -1) {
         entries[idx].text = newText;
+        if (pendingPhoto) {
+          entries[idx].photo = pendingPhoto;
+          photoChanged = true;
+        }
         saveEntries();
       }
       card.classList.remove('record-editing');
       renderTimeline();
+      if (photoChanged) {
+        alert('保存成功，照片已更换。');
+      } else {
+        alert('保存成功。');
+      }
     });
 
     cancelBtn.addEventListener('click', () => {
